@@ -6,6 +6,8 @@ de N1 et peut en bloquer l'accès dès que le voleur en sort. Un seul policier
 joue par tour, après le voleur.
 Les policiers gagnent en coinçant le voleur : toutes ses cases voisines
 doivent être occupées par la police (ils ne peuvent pas entrer sur sa case).
+Si la police occupe N1 pendant BLOCK_LIMIT tours consécutifs, le voleur
+gagne par évasion forcée.
 """
 
 import time
@@ -23,7 +25,9 @@ MOBILITY_WEIGHT = 4   # nombre de cases de fuite
 PRESSURE_WEIGHT = 8   # policiers directement adjacents
 NEAR_WEIGHT = 1       # policiers proches
 NEAR_RANGE = 4
-BLOCKED_BONUS = 6     # un policier immobilisé sur N1
+BLOCKED_BONUS = 6          # un policier immobilisé sur N1
+BLOCK_PROGRESS_WEIGHT = 20  # chaque tour où N1 reste bloqué
+BLOCK_LIMIT = 3            # 3 tours de blocage => victoire du voleur
 UNREACHABLE = MAX_TURNS
 
 # Budget de recherche.
@@ -45,6 +49,7 @@ class GameState:
     turn: int = 0
     to_move: str = THIEF_TURN
     winner: str | None = None
+    blocked_start_turns: int = 0
 
     def is_terminal(self):
         return self.winner is not None or self.turn >= MAX_TURNS
@@ -109,8 +114,13 @@ def apply_police_move(state, move):
     police[index] = new_position
     police = tuple(police)
 
+    blocked_turns = (state.blocked_start_turns + 1
+                     if START_NODE in police else 0)
+
     winner = None
-    if state.turn + 1 >= MAX_TURNS:
+    if blocked_turns >= BLOCK_LIMIT:
+        winner = "voleur"  # N1 bloqué trop longtemps : évasion forcée
+    elif state.turn + 1 >= MAX_TURNS:
         winner = "police"  # le voleur n'a pas eu le temps de rentrer
 
     next_state = replace(
@@ -119,6 +129,7 @@ def apply_police_move(state, move):
         turn=state.turn + 1,
         to_move=THIEF_TURN,
         winner=winner,
+        blocked_start_turns=blocked_turns,
     )
 
     if winner is None and _thief_blocked(next_state):
@@ -187,7 +198,7 @@ def evaluate(state):
     # Un policier sur N1 bloque l'arrivée, mais il est immobilisé : les autres
     # policiers sont trop peu nombreux pour former un piège.
     if START_NODE in state.police:
-        score += BLOCKED_BONUS
+        score += BLOCKED_BONUS + BLOCK_PROGRESS_WEIGHT * state.blocked_start_turns
 
     return score
 

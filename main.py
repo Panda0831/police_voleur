@@ -4,7 +4,7 @@ import math
 
 import pygame
 
-from game import Game
+from game import BLOCK_LIMIT, Game
 from graph import NODES, START_NODE
 from police import draw_police
 from voleur import draw_thief, draw_thief_path
@@ -119,9 +119,13 @@ def draw_hud(state):
           f"| evaluation {game.thief_score:+d}")
     screen.blit(font.render(ia, True, BLUE), (25, 40))
 
+    forced_escape = state.winner == "voleur" and START_NODE in state.police
+
     if state.winner == "voleur":
-        objective = "Gagne ! Le voleur est revenu sur N1."
-        banner_text = "Le voleur a regagne sa case depart !"
+        objective = ("Gagne ! N1 bloque trop longtemps : evasion forcee."
+                     if forced_escape else "Gagne ! Le voleur est revenu sur N1.")
+        banner_text = ("N1 bloque : le voleur s'echappe !" if forced_escape
+                       else "Le voleur a regagne sa case depart !")
         banner_color = RED
     elif state.winner == "police":
         objective = "Perdu ! Les policiers ont coince le voleur."
@@ -133,6 +137,8 @@ def draw_hud(state):
         objective = "Objectif : revenir sur N1 (case de depart)"
 
     police_text = ",".join(state.police)
+    if START_NODE in state.police and not state.winner:
+        police_text += f" (N1 bloque {state.blocked_start_turns}/{BLOCK_LIMIT})"
     status = (f"{objective}   |   Voleur : {state.thief}   |   "
               f"Police : {police_text}   |   Tour : {state.turn}")
     screen.blit(subtitle_font.render(status, True,
